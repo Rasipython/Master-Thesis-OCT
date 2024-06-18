@@ -1,0 +1,124 @@
+# Adrián de la Rasilla Calabuig
+# Máster en Ciencia e Ingeniería de la Luz 2020/2021
+# Trabajo de Fin de Máster Universidad de Cantabria / Tecnalia Research & Innovation
+
+print('START')
+
+# -----------------MÓDULOS-------------------
+print('Importando módulos...')
+import matplotlib.pyplot as plt
+import numpy as np
+import h5py
+import os
+import scipy as sp
+from scipy.signal import find_peaks
+import cv2 as cv
+
+# -----------------RUTAS---------------------
+print('Buscando archivos...')
+ruts = r'C:\Users\110263\Documents\TFM TECNALIA\12. PARTE EXPERIMENTAL\Pruebas OCT\Medidas Definitivas T2'
+rut_save = r'C:\Users\110263\Documents\TFM TECNALIA\12. PARTE EXPERIMENTAL\Pruebas OCT\Medidas Definitivas T2'
+print('\n----- Folder '+ruts+' ------\n')
+ruta = ruts + '/'
+ruta_save = rut_save + '\\'
+if not os.path.exists(ruta_save):
+    os.makedirs(ruta_save)
+files = os.listdir(ruta)
+#files.sort
+
+# -----------------DATOS---------------------
+for file in files:
+    if file.endswith('.h5'):
+        f = h5py.File(ruta + file, 'r')
+        print('File name:', file)
+        print("Keys: %s" % f.keys())
+        datos = f['Intensity']/np.amax(f['Intensity'])  #x horizontal, y vertical, z profundidad
+        datos = datos[:, 41:1581, 41:1001]
+        #Crear mapa
+        mapa = np.empty((datos.shape[0], datos.shape[1]))
+        mapa[:] = np.nan
+        # ------ Pasamos los ejes por el índice de refracción del plástico T2
+        rx = 4.87 / 1000  # # lente/digital
+        ry = 4.65 / 1000  # lente/digital
+        #T2
+        # rz = 3.5 / 1.1141 / 1000  # láser/digital/índice
+        #T1
+        rz = 3.5 / 1.1261 / 1000  # láser/digital/índice
+        # Creamos el eje en milímetros para el A-Scan
+        x = np.arange(0, rz * 960, rz)
+        x = x.transpose()
+        # Creamos los arrays para datos estadísticos
+        grasa = np.array([])
+        aire = np.array([])
+        correctos = np.array([])
+        # arrayumbral = np.array([])
+        #Recorrer las matrices de datos
+        for j in range(datos.shape[0]): #B-scans
+            bscan = datos[j, :, :] * 255
+            bscan1 = bscan.transpose()
+            #Histrograma para encontrar valor de threshold
+            # histo = plt.hist(bscan1.ravel(), 256, color='gray')
+            # max = np.max(histo[0])
+            # pos = np.where(histo[0] == max)
+            # umbral = pos[0][0] + 10
+            # arrayumbral = np.append(arrayumbral, umbral)
+            # Umbralización global
+            _, th1 = cv.threshold(bscan1, 125, 255, cv.THRESH_BINARY)
+            if j == 204:
+                # Histograma
+                plt.figure()
+                plt.hist(bscan1.ravel(), 256, color='gray')
+                plt.xlim(0, 255)
+                plt.title('Histograma B-Scan (j = {})'.format(j))
+                # Mostrar los B-Scans
+                plt.figure()
+                plt.title('B-Scan Original (j = {})'.format(j))
+                plt.xlabel(r'Eje X [Píxeles]')
+                plt.ylabel(r'Eje Z [Píxeles]')
+                plt.imshow(bscan1, 'gray')
+                plt.figure()
+                plt.title('B-Scan Binarizado (v = 125)')    #.format(umbral))
+                plt.xlabel(r'Eje X [Píxeles]')
+                plt.ylabel(r'Eje Z [Píxeles]')
+                plt.imshow(th1, 'gray')
+                # A-Scan
+                plt.figure()
+                plt.plot(x, th1[:, 770])
+                plt.title(r'A-Scan (i = 770)')
+                plt.xlabel(r'Profundidad [mm]')
+
+                plt.figure()
+                plt.plot(x, bscan1[:, 770])
+                plt.title(r'A-Scan (i = 770)')
+                plt.xlabel(r'Profundidad [mm]')
+            # Entramos en los A-Scans
+            # for i in range(th1.shape[1]): #A-scans
+            #     ascan = th1[:, i]
+            #     # Identificar picos
+            #     numpicos, _ = find_peaks(ascan, height=255)
+            #     if len(numpicos) > 4 and len(numpicos) < 10: #Grasa
+            #         mapa[j, i] = 1
+            #         grasa = np.append(grasa, len(numpicos))
+            #     elif len(numpicos) == 4: #Aire
+            #         #Medir distancias picos
+            #         dispicos = np.diff(numpicos)
+            #         aire = np.append(aire, dispicos[1])
+            #         mapa[j, i] = 1
+            #     elif len(numpicos) == 3 or len(numpicos) == 2:  #Termosellado correcto ==3, pero hay medidas con agujeros después del THRES
+            #         correctos = np.append(correctos, len(numpicos))
+            #         mapa[j, i] = 0
+        # Visualizar y guardar mapa
+        # plt.figure()
+        # plt.imshow(mapa)
+        # plt.title(r'Mapa  {}'.format(file))
+        # plt.xticks([])
+        # plt.yticks([])
+        # plt.xlabel(r'OCT Field of View 7.50 mm')
+        # plt.ylabel(r'OCT Field of View 1.90 mm')
+        # # plt.xlabel(r'|-------------------------------------------- 7.50 mm --------------------------------------------|')
+        # # plt.ylabel(r'|------ 1.90 mm ------|')
+        # plt.savefig(rut_save + file +'.tiff')
+        # Estadísticos, Violin Plot
+        # plt.figure()
+        # plt.violinplot(correctos, defectos)
+print('END')
